@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<properties>
+
+    <!-- Database Configuration -->
+    <entry key='database.driver'>org.h2.Driver</entry>
+    <entry key='database.url'>jdbc:h2:./data/database;DB_CLOSE_DELAY=-1;MODE=MYSQL</entry>
+    <entry key='database.user'>sa</entry>
+    <entry key='database.password'></entry>
+
+    <!-- SinoTrack Protocol Listener -->
+    <entry key='h02.port'>5013</entry>
+    <entry key='protocols.enable'>h02,osmand</entry>
+
+    <!-- Disable Same-Origin Restriction for iFrame Embedding -->
+    <entry key='web.origin'>*</entry>
+
+    <!-- ── Filter Configuration (FIXED) ────────────────────────── -->
+    <entry key='filter.enable'>true</entry>
+    <entry key='filter.invalid'>true</entry>
+    <entry key='filter.zero'>true</entry>
+    <entry key='filter.duplicate'>true</entry>
+    <entry key='filter.static'>true</entry>
+
+    <!-- Enforce filtering even if packet has heartbeat/battery attributes -->
+    <entry key='filter.skipAttributes'>false</entry>
+
+    <!-- Minimum interval in seconds between 2 saved fixes from the same device -->
+    <!-- (Replaces the non-existent filter.time) -->
+    <entry key='filter.minPeriod'>10</entry>
+
+    <!-- Discard points closer than 20 meters (70 meters is often too large and skips turns) -->
+    <entry key='filter.distance'>20</entry>
+
+</properties>

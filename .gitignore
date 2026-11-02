@@ -1,0 +1,17 @@
+# Traccar runtime database files
+data/*
+!data/.gitkeep
+*.db
+*.db.*
+
+# Traccar server logs
+logs/*
+!logs/.gitkeep
+*.log
+*.log.*
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
