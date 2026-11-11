@@ -47,7 +47,7 @@ This directory acts as the dedicated state and configuration volume for the Trac
 
 | Component | Role & Scope |
 | :--- | :--- |
-| **Server Configuration** | Defines database connections, listener ports, protocol whitelists, CORS origins, and filtering logic via [`traccar.xml`](file:///home/ilyasnmili/Desktop/traccar/traccar.xml). |
+| **Server Configuration** | Defines database connections, listener ports, protocol whitelists, CORS origins, iframe cookie settings, and filtering logic via [`traccar.xml`](file:///home/ilyasnmili/Desktop/traccar/traccar.xml). |
 | **GPS Telemetry Ingestion** | Receives real-time GPS telemetry from hardware trackers (e.g. SinoTrack over H02 protocol on port `5013`) and mobile/software clients (OsmAnd on port `5055`). |
 | **Data Persistence** | Manages device records, geofences, user accounts, and position histories within an embedded [H2 Database](https://www.h2database.com/) under [`data/`](file:///home/ilyasnmili/Desktop/traccar/data). |
 | **Data Hygiene & Optimization** | Provides an automated filtering pipeline in [`traccar.xml`](file:///home/ilyasnmili/Desktop/traccar/traccar.xml) to drop GPS drift, invalid coordinates, and static clutter, along with an explicit cleanup script [`dedup.sql`](file:///home/ilyasnmili/Desktop/traccar/dedup.sql). |
@@ -110,12 +110,26 @@ Traccar uses the standard Java Properties XML DTD (`java.sun.com/dtd/properties.
 ### Web & iFrame Integration
 
 ```xml
-<!-- Disable Same-Origin Restriction for iFrame Embedding -->
+<!-- Cross-origin (CORS) header for API calls from other sites -->
 <entry key='web.origin'>*</entry>
+
+<!-- <entry key='web.sameSiteCookie'>None</entry> -->
 ```
 
-- **`web.origin` (`*`)**: Configures Cross-Origin Resource Sharing (CORS) and removes restrictive HTTP security headers (`X-Frame-Options: SAMEORIGIN` / restrictive `Content-Security-Policy: frame-ancestors`).
-- **Use Case**: Allows the Traccar web dashboard or map widgets to be embedded seamlessly inside external applications, custom portals, or `<iframe>` containers hosted on different domains.
+- **`web.origin` (`*`)**: The Cross-Origin Resource Sharing (CORS) origin header value. It lets pages on other sites call the Traccar API from the browser. It does not control iframe embedding.
+- **`web.sameSiteCookie`** (commented out): Sets the `SameSite` attribute of the session cookie (`Lax`, `Strict` or `None`). See below for when to enable it.
+
+#### Embedding in the hotel ERP and the staff portal
+
+The ERP page *Transport → Vehicle locations* and the staff portal's driver workspace show this web page in an `<iframe>`. The PMS hands them the address `https://<traccar>/?token=<token>`; opened that way, the Traccar web app signs the viewer in with the token, so staff never see a Traccar login.
+
+Setup:
+
+1. **Create a dedicated Traccar user for the map** (Settings → Users). Make it **read-only**, tick nothing administrative, and link it only to the fleet's devices. The token is sent to the browser of every ERP and portal user who can open the map, so anyone who inspects the page can use it: it must never belong to an administrator.
+2. **Create an access token for that user** (sign in as it → Settings → Preferences → Token) and choose an expiry far enough ahead; the map stops working when the token expires.
+3. **Set it in the PMS `.env`**: `TRACCAR_URL=https://<traccar>` and `TRACCAR_TOKEN=<token>`.
+4. **Session cookie**: if Traccar is on a subdomain of the same domain as the ERP and portal (for example `gps.example.com` with `erp.example.com`), nothing else is needed. If it is on a different domain, uncomment `web.sameSiteCookie` = `None`. That also marks the cookie `Secure`, so only do it when Traccar is served over **HTTPS**; on plain HTTP nobody could sign in any more. Some browsers (Safari) block cookies in cross-site frames regardless, so the same-domain setup is the reliable one.
+5. Serve Traccar over HTTPS in any case: a page loaded over HTTPS cannot show an HTTP frame.
 
 ---
 

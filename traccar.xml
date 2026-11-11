@@ -12,8 +12,17 @@
     <entry key='h02.port'>5013</entry>
     <entry key='protocols.enable'>h02,osmand</entry>
 
-    <!-- Disable Same-Origin Restriction for iFrame Embedding -->
+    <!-- Cross-origin (CORS) header for API calls from other sites -->
     <entry key='web.origin'>*</entry>
+
+    <!--
+        iFrame embedding (hotel ERP and staff portal show this web page in a frame).
+        Needed only when Traccar is on a different site than the app embedding it
+        (not a subdomain of the same domain): browsers then drop the session cookie
+        unless it is SameSite=None. This also marks the cookie Secure, so enable it
+        ONLY when Traccar is served over HTTPS, or nobody can sign in.
+    -->
+    <!-- <entry key='web.sameSiteCookie'>None</entry> -->
 
     <!-- ── Filter Configuration (FIXED) ────────────────────────── -->
     <entry key='filter.enable'>true</entry>
