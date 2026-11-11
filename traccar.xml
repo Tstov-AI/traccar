@@ -40,4 +40,11 @@
     <!-- Discard points closer than 20 meters (70 meters is often too large and skips turns) -->
     <entry key='filter.distance'>20</entry>
 
+    <!--
+        Keep one position at least every 30 minutes even when every filter above would drop
+        it, so a parked vehicle still shows a recent "last seen" and current location.
+        (The static filter alone would drop every position of a parked vehicle forever.)
+    -->
+    <entry key='filter.skipLimit'>1800</entry>
+
 </properties>
