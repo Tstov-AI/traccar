@@ -2,7 +2,15 @@
 <!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
 <properties>
 
-    <!-- Database Configuration -->
+    <!--
+        Let environment variables override any entry below: the variable is the key in
+        upper case with dots as underscores (database.url -> DATABASE_URL,
+        filter.minPeriod -> FILTER_MIN_PERIOD). A hosted deployment sets its PostgreSQL
+        connection this way; without those variables the embedded H2 file below is used.
+    -->
+    <entry key='config.useEnvironmentVariables'>true</entry>
+
+    <!-- Database Configuration (default: embedded H2 file) -->
     <entry key='database.driver'>org.h2.Driver</entry>
     <entry key='database.url'>jdbc:h2:./data/database;DB_CLOSE_DELAY=-1;MODE=MYSQL</entry>
     <entry key='database.user'>sa</entry>
