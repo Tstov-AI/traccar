@@ -91,6 +91,34 @@ Traccar uses the standard Java Properties XML DTD (`java.sun.com/dtd/properties.
 
 ---
 
+#### Hosted deployment on Railway (PostgreSQL)
+
+A second instance runs on Railway, in the `transport-saas` project, built from the `Dockerfile` in this repository (the official `traccar/traccar` image plus this `traccar.xml`):
+
+| | |
+| :--- | :--- |
+| Web interface and API | `https://traccar-production-5216f591.up.railway.app` (container port `8082`) |
+| SinoTrack (H02) trackers | `tramway.proxy.rlwy.net`, port `52838` (TCP, forwarded to container port `5013`) |
+| Database | the `Postgres` service of the same project |
+
+`traccar.xml` enables `config.useEnvironmentVariables`, so any entry can be overridden by an environment variable named after its key, in upper case with dots as underscores. The Railway service keeps the file as is and sets:
+
+| Variable | Value |
+| :--- | :--- |
+| `DATABASE_DRIVER` | `org.postgresql.Driver` |
+| `DATABASE_URL` | `jdbc:postgresql://<host>:<port>/<database>` (a JDBC address, not the `postgresql://user:pass@…` form) |
+| `DATABASE_USER` / `DATABASE_PASSWORD` | the PostgreSQL credentials, referenced from the `Postgres` service |
+| `LOGGER_CONSOLE` | `true`, so the log goes to the container output where Railway shows it |
+
+Notes:
+
+- Traccar creates its tables on first start. This database started **empty**: no users, devices or history were carried over from the H2 file of the original server. The first account registered on the web interface becomes the administrator.
+- A tracker only reports here once it is told to: each SinoTrack device has to be pointed at the host and port above (they still send to the original server until then).
+- Railway forwards one TCP port per service, so the OsmAnd port (`5055`) is not reachable from outside.
+- The service deploys on every push to the branch it is connected to.
+
+---
+
 ### Protocol Listeners (SinoTrack & OsmAnd)
 
 ```xml
