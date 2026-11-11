@@ -12,7 +12,7 @@ This directory contains the runtime configuration, embedded database storage, ex
    - [XML Document Format](#xml-document-format)
    - [Database Connection](#database-connection)
    - [Protocol Listeners (SinoTrack & OsmAnd)](#protocol-listeners-sinotrack--osmand)
-   - [Web & iFrame Integration](#web--iframe-integration)
+   - [Web Access & PMS Integration](#web-access--pms-integration)
 4. [Traccar Position Filtering Engine (`filter.*`)](#4-traccar-position-filtering-engine-filter)
    - [Why Filtering is Critical](#why-filtering-is-critical)
    - [Filter Configuration Breakdown](#filter-configuration-breakdown)
@@ -91,6 +91,34 @@ Traccar uses the standard Java Properties XML DTD (`java.sun.com/dtd/properties.
 
 ---
 
+#### Hosted deployment on Railway (PostgreSQL)
+
+A second instance runs on Railway, in the `transport-saas` project, built from the `Dockerfile` in this repository (the official `traccar/traccar` image plus this `traccar.xml`):
+
+| | |
+| :--- | :--- |
+| Web interface and API | `https://traccar-production-5216f591.up.railway.app` (container port `8082`) |
+| SinoTrack (H02) trackers | `tramway.proxy.rlwy.net`, port `52838` (TCP, forwarded to container port `5013`) |
+| Database | the `Postgres` service of the same project |
+
+`traccar.xml` enables `config.useEnvironmentVariables`, so any entry can be overridden by an environment variable named after its key, in upper case with dots as underscores. The Railway service keeps the file as is and sets:
+
+| Variable | Value |
+| :--- | :--- |
+| `DATABASE_DRIVER` | `org.postgresql.Driver` |
+| `DATABASE_URL` | `jdbc:postgresql://<host>:<port>/<database>` (a JDBC address, not the `postgresql://user:pass@…` form) |
+| `DATABASE_USER` / `DATABASE_PASSWORD` | the PostgreSQL credentials, referenced from the `Postgres` service |
+| `LOGGER_CONSOLE` | `true`, so the log goes to the container output where Railway shows it |
+
+Notes:
+
+- Traccar creates its tables on first start. This database started **empty**: no users, devices or history were carried over from the H2 file of the original server. The first account registered on the web interface becomes the administrator.
+- A tracker only reports here once it is told to: each SinoTrack device has to be pointed at the host and port above (they still send to the original server until then).
+- Railway forwards one TCP port per service, so the OsmAnd port (`5055`) is not reachable from outside.
+- The service deploys on every push to the branch it is connected to.
+
+---
+
 ### Protocol Listeners (SinoTrack & OsmAnd)
 
 ```xml
@@ -107,15 +135,28 @@ Traccar uses the standard Java Properties XML DTD (`java.sun.com/dtd/properties.
 
 ---
 
-### Web & iFrame Integration
+### Web Access & PMS Integration
 
 ```xml
-<!-- Disable Same-Origin Restriction for iFrame Embedding -->
+<!-- Cross-origin (CORS) header for API calls from other sites -->
 <entry key='web.origin'>*</entry>
 ```
 
-- **`web.origin` (`*`)**: Configures Cross-Origin Resource Sharing (CORS) and removes restrictive HTTP security headers (`X-Frame-Options: SAMEORIGIN` / restrictive `Content-Security-Policy: frame-ancestors`).
-- **Use Case**: Allows the Traccar web dashboard or map widgets to be embedded seamlessly inside external applications, custom portals, or `<iframe>` containers hosted on different domains.
+- **`web.origin` (`*`)**: The Cross-Origin Resource Sharing (CORS) origin header value. It lets pages on other sites call the Traccar API from the browser. It does not control iframe embedding.
+
+#### How the hotel ERP and the staff portal show vehicle positions
+
+Neither app talks to Traccar, and Traccar's web page is not embedded anywhere. The hotel PMS reads positions from this server and serves them to both apps, which draw their own map:
+
+```
+trackers ──► Traccar ◄── PMS (server-side, every few seconds) ──► ERP "Vehicle locations" / staff portal "Vehicle map"
+```
+
+- The PMS calls `GET /api/devices` and `GET /api/positions` with HTTP Basic authentication and caches the answer for a few seconds.
+- Because the call is made by the PMS server, not by a browser, this server can stay on plain HTTP and needs no public domain; only the PMS server has to reach its web port (`8082`).
+- PMS `.env`: `TRACCAR_URL=http://<this server>:8082`, `TRACCAR_USER`, `TRACCAR_PASSWORD`.
+- **Use a dedicated read-only user** for the PMS (Settings → Users → tick *Readonly*), linked only to the fleet's devices. The PMS shows every device that user can see.
+- **Name each device with its vehicle's plate number** (for example `Vito 12345-A-6`). The PMS matches a tracker to a PMS vehicle when the device name contains the plate number, ignoring spaces and dashes, and then shows the vehicle's model and plate; otherwise it shows the device name as is.
 
 ---
 
@@ -164,6 +205,7 @@ The active filtering configuration inside [`traccar.xml`](file:///home/ilyasnmil
 | **`filter.skipAttributes`** | `false` | **Strict Filtering Enforcement**: By default in Traccar, if an incoming position packet includes special attributes (such as battery level, ignition status, alarms, or GSM signal), Traccar will *bypass* the filters to ensure the attribute is saved. Setting this to `false` **enforces position filtering strictly**, preventing periodic heartbeats from flooding the position database with duplicate stationary points. |
 | **`filter.minPeriod`** | `10` | **Time Interval Limiter (Seconds)**: Enforces a minimum interval of **10 seconds** between two saved positions for the same device. Any fix arriving within 10 seconds of the prior saved fix is discarded unless significant movement occurred. *(Note: replaces the obsolete `filter.time` key).* |
 | **`filter.distance`** | `20` | **Distance Threshold (Meters)**: Discards any new position if the physical distance from the previous recorded position is **less than 20 meters**. <br>• **Why 20m?** Default values (like 50m–70m) often skip sharp turns and intersections during urban driving. A 20m threshold preserves cornering accuracy while filtering out parking jitter. |
+| **`filter.skipLimit`** | `1800` | **Keep-alive position (seconds)**: if no position has been saved for **30 minutes**, the next one is kept even when the filters above would drop it. Without it, a parked vehicle never gets a new position (`filter.static` drops every zero-speed fix), so its location and "last seen" go stale. Note that it only applies once a device has at least one saved position: a brand-new device that has only ever been parked shows nothing until it moves. |
 
 ---
 

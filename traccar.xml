@@ -2,7 +2,15 @@
 <!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
 <properties>
 
-    <!-- Database Configuration -->
+    <!--
+        Let environment variables override any entry below: the variable is the key in
+        upper case with dots as underscores (database.url -> DATABASE_URL,
+        filter.minPeriod -> FILTER_MIN_PERIOD). A hosted deployment sets its PostgreSQL
+        connection this way; without those variables the embedded H2 file below is used.
+    -->
+    <entry key='config.useEnvironmentVariables'>true</entry>
+
+    <!-- Database Configuration (default: embedded H2 file) -->
     <entry key='database.driver'>org.h2.Driver</entry>
     <entry key='database.url'>jdbc:h2:./data/database;DB_CLOSE_DELAY=-1;MODE=MYSQL</entry>
     <entry key='database.user'>sa</entry>
@@ -12,7 +20,7 @@
     <entry key='h02.port'>5013</entry>
     <entry key='protocols.enable'>h02,osmand</entry>
 
-    <!-- Disable Same-Origin Restriction for iFrame Embedding -->
+    <!-- Cross-origin (CORS) header for API calls from other sites -->
     <entry key='web.origin'>*</entry>
 
     <!-- ── Filter Configuration (FIXED) ────────────────────────── -->
@@ -31,5 +39,12 @@
 
     <!-- Discard points closer than 20 meters (70 meters is often too large and skips turns) -->
     <entry key='filter.distance'>20</entry>
+
+    <!--
+        Keep one position at least every 30 minutes even when every filter above would drop
+        it, so a parked vehicle still shows a recent "last seen" and current location.
+        (The static filter alone would drop every position of a parked vehicle forever.)
+    -->
+    <entry key='filter.skipLimit'>1800</entry>
 
 </properties>
