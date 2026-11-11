@@ -12,7 +12,7 @@ This directory contains the runtime configuration, embedded database storage, ex
    - [XML Document Format](#xml-document-format)
    - [Database Connection](#database-connection)
    - [Protocol Listeners (SinoTrack & OsmAnd)](#protocol-listeners-sinotrack--osmand)
-   - [Web & iFrame Integration](#web--iframe-integration)
+   - [Web Access & PMS Integration](#web-access--pms-integration)
 4. [Traccar Position Filtering Engine (`filter.*`)](#4-traccar-position-filtering-engine-filter)
    - [Why Filtering is Critical](#why-filtering-is-critical)
    - [Filter Configuration Breakdown](#filter-configuration-breakdown)
@@ -47,7 +47,7 @@ This directory acts as the dedicated state and configuration volume for the Trac
 
 | Component | Role & Scope |
 | :--- | :--- |
-| **Server Configuration** | Defines database connections, listener ports, protocol whitelists, CORS origins, iframe cookie settings, and filtering logic via [`traccar.xml`](file:///home/ilyasnmili/Desktop/traccar/traccar.xml). |
+| **Server Configuration** | Defines database connections, listener ports, protocol whitelists, CORS origins, and filtering logic via [`traccar.xml`](file:///home/ilyasnmili/Desktop/traccar/traccar.xml). |
 | **GPS Telemetry Ingestion** | Receives real-time GPS telemetry from hardware trackers (e.g. SinoTrack over H02 protocol on port `5013`) and mobile/software clients (OsmAnd on port `5055`). |
 | **Data Persistence** | Manages device records, geofences, user accounts, and position histories within an embedded [H2 Database](https://www.h2database.com/) under [`data/`](file:///home/ilyasnmili/Desktop/traccar/data). |
 | **Data Hygiene & Optimization** | Provides an automated filtering pipeline in [`traccar.xml`](file:///home/ilyasnmili/Desktop/traccar/traccar.xml) to drop GPS drift, invalid coordinates, and static clutter, along with an explicit cleanup script [`dedup.sql`](file:///home/ilyasnmili/Desktop/traccar/dedup.sql). |
@@ -107,29 +107,28 @@ Traccar uses the standard Java Properties XML DTD (`java.sun.com/dtd/properties.
 
 ---
 
-### Web & iFrame Integration
+### Web Access & PMS Integration
 
 ```xml
 <!-- Cross-origin (CORS) header for API calls from other sites -->
 <entry key='web.origin'>*</entry>
-
-<!-- <entry key='web.sameSiteCookie'>None</entry> -->
 ```
 
 - **`web.origin` (`*`)**: The Cross-Origin Resource Sharing (CORS) origin header value. It lets pages on other sites call the Traccar API from the browser. It does not control iframe embedding.
-- **`web.sameSiteCookie`** (commented out): Sets the `SameSite` attribute of the session cookie (`Lax`, `Strict` or `None`). See below for when to enable it.
 
-#### Embedding in the hotel ERP and the staff portal
+#### How the hotel ERP and the staff portal show vehicle positions
 
-The ERP page *Transport → Vehicle locations* and the staff portal's driver workspace show this web page in an `<iframe>`. The PMS hands them the address `https://<traccar>/?token=<token>`; opened that way, the Traccar web app signs the viewer in with the token, so staff never see a Traccar login.
+Neither app talks to Traccar, and Traccar's web page is not embedded anywhere. The hotel PMS reads positions from this server and serves them to both apps, which draw their own map:
 
-Setup:
+```
+trackers ──► Traccar ◄── PMS (server-side, every few seconds) ──► ERP "Vehicle locations" / staff portal "Vehicle map"
+```
 
-1. **Create a dedicated Traccar user for the map** (Settings → Users). Make it **read-only**, tick nothing administrative, and link it only to the fleet's devices. The token is sent to the browser of every ERP and portal user who can open the map, so anyone who inspects the page can use it: it must never belong to an administrator.
-2. **Create an access token for that user** (sign in as it → Settings → Preferences → Token) and choose an expiry far enough ahead; the map stops working when the token expires.
-3. **Set it in the PMS `.env`**: `TRACCAR_URL=https://<traccar>` and `TRACCAR_TOKEN=<token>`.
-4. **Session cookie**: if Traccar is on a subdomain of the same domain as the ERP and portal (for example `gps.example.com` with `erp.example.com`), nothing else is needed. If it is on a different domain, uncomment `web.sameSiteCookie` = `None`. That also marks the cookie `Secure`, so only do it when Traccar is served over **HTTPS**; on plain HTTP nobody could sign in any more. Some browsers (Safari) block cookies in cross-site frames regardless, so the same-domain setup is the reliable one.
-5. Serve Traccar over HTTPS in any case: a page loaded over HTTPS cannot show an HTTP frame.
+- The PMS calls `GET /api/devices` and `GET /api/positions` with HTTP Basic authentication and caches the answer for a few seconds.
+- Because the call is made by the PMS server, not by a browser, this server can stay on plain HTTP and needs no public domain; only the PMS server has to reach its web port (`8082`).
+- PMS `.env`: `TRACCAR_URL=http://<this server>:8082`, `TRACCAR_USER`, `TRACCAR_PASSWORD`.
+- **Use a dedicated read-only user** for the PMS (Settings → Users → tick *Readonly*), linked only to the fleet's devices. The PMS shows every device that user can see.
+- **Name each device with its vehicle's plate number** (for example `Vito 12345-A-6`). The PMS matches a tracker to a PMS vehicle when the device name contains the plate number, ignoring spaces and dashes, and then shows the vehicle's model and plate; otherwise it shows the device name as is.
 
 ---
 
